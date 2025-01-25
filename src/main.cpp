@@ -21,7 +21,7 @@
 #define Arm1PIN 33
 #define Arm2PIN 32
 #define FanPIN 0
-#define HumidifierPIN 35
+#define HumidifierPIN 13
 #define PumpPIN 15
 #define LightPIN 2
 #define SR04_trig 22
@@ -65,7 +65,7 @@ int DryServoPos = 0;
 
 SR04 sr04 = SR04(SR04_echo, SR04_trig);
 int waterLevel = 0;
-#define waterLevelMax 6
+#define waterLevelMax 3
 #define waterLevelMin 8
 
 // 状态标志：1 表示设备处于蓝牙控制模式，0 表示自动控制模式
@@ -330,6 +330,8 @@ void setup() {
   //   delay(50);
   // }
   // endArmSetup:
+
+  delay(2000);
 }
 
 
