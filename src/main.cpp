@@ -7,6 +7,7 @@
 #include<DHT.h>
 #include<ESP32Servo.h>
 #include <Blinker.h>
+#include <Sr04.h>
 
 #define TFT_CS 16
 #define TFT_DC 17
@@ -23,6 +24,8 @@
 #define HumidifierPIN 35
 #define PumpPIN 15
 #define LightPIN 2
+#define SR04_trig 22
+#define SR04_echo 21
 
 //TFT: SCL-18, SDA-23
 
@@ -49,6 +52,7 @@ LDRVAL LDRVal;
 
 int HTcount;
 
+
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 DHT dht(DHTPIN, DHTTYPE);
 ESP32PWM pwm;
@@ -59,6 +63,11 @@ int pos = 0;
 int currentPos = 0;
 int DryServoPos = 0;
 
+SR04 sr04 = SR04(SR04_trig, SR04_echo);
+int waterLevel = 0;
+#define waterLevelMax 6
+#define waterLevelMin 8
+
 // 状态标志：1 表示设备处于蓝牙控制模式，0 表示自动控制模式
 int controlMode = 0;  // 默认是自动控制模式
 
@@ -67,6 +76,7 @@ BlinkerButton Button1("btn-humidifier");
 BlinkerButton Button2("btn-fan");
 BlinkerButton Button3("btn-light");
 BlinkerButton Button4("btn-dryservo");
+BlinkerButton Button5("btn-pump");
 
 void getHT() {
     ht.h = dht.readHumidity();
@@ -126,6 +136,7 @@ void toggleFan() {
 }
 
 void toggleHumidifier() {
+  addWater();
   if(digitalRead(HumidifierPIN) == HIGH){
     digitalWrite(HumidifierPIN, LOW);
     Serial.println("HumidifierOFF");
@@ -165,6 +176,7 @@ void toggleDry() {
 // 自动控制设备（湿度低于阈值开启加湿器，高于阈值开启风扇和干燥机）
 void autoControl() {
     if (ht.h < HUMIDITY_THRESHOLD_LOW) {
+        addWater();
         digitalWrite(HumidifierPIN, HIGH);  // 启动加湿器
         Serial.println("Auto: Humidifier ON");
     } else {
@@ -181,6 +193,18 @@ void autoControl() {
         DryServo.write(90);            // 关闭干燥机盒
         Serial.println("Auto: Fan OFF, DryServo CLOSE");
     }
+}
+
+void getWaterLevel() {
+  waterLevel = sr04.Distance();
+  Serial.print("Distance: ");
+  Serial.println(waterLevel);
+}
+
+void addWater() {
+  if (waterLevel >= waterLevelMin) {
+    digitalWrite(PumpPIN, HIGH);
+  }
 }
 
 // 按键触发回调函数，控制加湿器
@@ -228,6 +252,17 @@ void button4_callback(const String & state) {
     } else {
       Serial.println("Dry ON");
     }
+}
+
+// 按键触发回调函数，控制水泵
+void button5_callback(const String & state) {
+  BLINKER_LOG("get button state: ", state);
+  togglePump();
+  if (digitalRead(PumpPIN) == HIGH) {
+    Serial.println("Pump ON");
+  } else {
+    Serial.println("Pump OFF");
+  }
 }
 
 void setup() {
@@ -295,19 +330,23 @@ void setup() {
 
 
 void loop() {
-    // 运行Blinker蓝牙库
-    Blinker.run();
-
+  Blinker.run();
+  if (millis() - lastHTUpdate >= HT_INTERVAL) {
     // 获取湿度和温度
     getHT();
     displayHT();
 
     // 如果处于自动控制模式，则根据湿度阈值自动控制设备
     if (controlMode == 0) {
-        autoControl();
+      autoControl();
     }
+    lastHTUpdate = millis();
+  }
 
-    delay(1000);  // 每秒更新一次湿度和温度
+  getWaterLevel();
+  if (waterLevel <= waterLevelMax) {
+    digitalWrite(PumpPIN, LOW);
+  }
 }
 
     // getLDRVal();
