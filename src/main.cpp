@@ -63,7 +63,7 @@ int pos = 0;
 int currentPos = 0;
 int DryServoPos = 0;
 
-SR04 sr04 = SR04(SR04_trig, SR04_echo);
+SR04 sr04 = SR04(SR04_echo, SR04_trig);
 int waterLevel = 0;
 #define waterLevelMax 6
 #define waterLevelMin 8
@@ -109,6 +109,18 @@ void getLDRVal() {
   Serial.print(LDRVal.M);
   Serial.print(" ");
   Serial.println(LDRVal.R);
+}
+
+void getWaterLevel() {
+  waterLevel = sr04.Distance();
+  Serial.print("Distance: ");
+  Serial.println(waterLevel);
+}
+
+void addWater() {
+  if (waterLevel >= waterLevelMin) {
+    digitalWrite(PumpPIN, HIGH);
+  }
 }
 
 void toggleLight() {
@@ -195,17 +207,7 @@ void autoControl() {
     }
 }
 
-void getWaterLevel() {
-  waterLevel = sr04.Distance();
-  Serial.print("Distance: ");
-  Serial.println(waterLevel);
-}
 
-void addWater() {
-  if (waterLevel >= waterLevelMin) {
-    digitalWrite(PumpPIN, HIGH);
-  }
-}
 
 // 按键触发回调函数，控制加湿器
 void button1_callback(const String & state) {
@@ -258,6 +260,7 @@ void button4_callback(const String & state) {
 void button5_callback(const String & state) {
   BLINKER_LOG("get button state: ", state);
   togglePump();
+  controlMode = 1;
   if (digitalRead(PumpPIN) == HIGH) {
     Serial.println("Pump ON");
   } else {
@@ -310,6 +313,7 @@ void setup() {
   Button2.attach(button2_callback);  // 控制风扇
   Button3.attach(button3_callback);  // 控制灯
   Button4.attach(button4_callback);  // 控制干燥机
+  Button5.attach(button5_callback);
   
   // for(pos = 0; pos <= 45; ++pos) {
   //   Arm1Servo.write(pos);
