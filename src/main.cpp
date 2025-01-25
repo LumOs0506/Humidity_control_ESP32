@@ -1,9 +1,12 @@
+#define BLINKER_PRINT Serial
+#define BLINKER_BLE
+
 #include<Adafruit_GFX.h>
 #include<Adafruit_ST7735.h>
 #include<SPI.h>
 #include<DHT.h>
 #include<ESP32Servo.h>
-
+#include <Blinker.h>
 
 #define TFT_CS 16
 #define TFT_DC 17
@@ -26,6 +29,9 @@
 // 用于控制温湿度读取的定时器
 unsigned long lastHTUpdate = 0;
 const unsigned long HT_INTERVAL = 1000;  // 每秒更新一次
+
+#define HUMIDITY_THRESHOLD_LOW 40    // 湿度低于此值启动加湿器
+#define HUMIDITY_THRESHOLD_HIGH 70   // 湿度高于此值启动风扇和干燥机
 
 typedef struct {
   float h;
@@ -52,9 +58,99 @@ Servo DryServo;
 int pos = 0;
 int currentPos = 0;
 
+// 状态标志：1 表示设备处于蓝牙控制模式，0 表示自动控制模式
+int controlMode = 0;  // 默认是自动控制模式
+
+// 初始化蓝牙设备
+BlinkerButton Button1("btn-humidifier");
+BlinkerButton Button2("btn-fan");
+BlinkerButton Button3("btn-light");
+BlinkerButton Button4("btn-dryservo");
+
+// 按键触发回调函数，控制加湿器
+void button1_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    if (state == "on") {
+        digitalWrite(HumidifierPIN, HIGH);  // 启动加湿器
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Humidifier ON");
+    } else {
+        digitalWrite(HumidifierPIN, LOW);   // 关闭加湿器
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Humidifier OFF");
+    }
+}
+
+// 按键触发回调函数，控制风扇
+void button2_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    if (state == "on") {
+        digitalWrite(FanPIN, HIGH);  // 启动风扇
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Fan ON");
+    } else {
+        digitalWrite(FanPIN, LOW);   // 关闭风扇
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Fan OFF");
+    }
+}
+
+// 按键触发回调函数，控制灯
+void button3_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    if (state == "on") {
+        digitalWrite(LightPIN, HIGH);  // 启动灯
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Light ON");
+    } else {
+        digitalWrite(LightPIN, LOW);   // 关闭灯
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("Light OFF");
+    }
+}
+
+// 按键触发回调函数，控制干燥机
+void button4_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    if (state == "on") {
+        DryServo.write(90);  // 打开干燥机盒（假设90度为开启）
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("DryServo OPEN");
+    } else {
+        DryServo.write(0);   // 关闭干燥机盒（假设0度为关闭）
+        controlMode = 1;  // 进入蓝牙控制模式
+        Serial.println("DryServo CLOSE");
+    }
+}
+
+// 自动控制设备（湿度低于阈值开启加湿器，高于阈值开启风扇和干燥机）
+void autoControl() {
+    if (ht.h < HUMIDITY_THRESHOLD_LOW) {
+        digitalWrite(HumidifierPIN, HIGH);  // 启动加湿器
+        Serial.println("Auto: Humidifier ON");
+    } else {
+        digitalWrite(HumidifierPIN, LOW);   // 关闭加湿器
+        Serial.println("Auto: Humidifier OFF");
+    }
+
+    if (ht.h > HUMIDITY_THRESHOLD_HIGH) {
+        digitalWrite(FanPIN, HIGH);   // 启动风扇
+        DryServo.write(90);           // 打开干燥机盒
+        Serial.println("Auto: Fan ON, DryServo OPEN");
+    } else {
+        digitalWrite(FanPIN, LOW);    // 关闭风扇
+        DryServo.write(0);            // 关闭干燥机盒
+        Serial.println("Auto: Fan OFF, DryServo CLOSE");
+    }
+}
+
 void getHT() {
-  ht.h = dht.readHumidity();
-  ht.t = dht.readTemperature();
+    ht.h = dht.readHumidity();
+    ht.t = dht.readTemperature();
+    if (isnan(ht.h) || isnan(ht.t)) {
+        Serial.println("Failed to read from DHT sensor!");
+        return;
+    }
 }
 
 void displayHT() {
@@ -81,53 +177,6 @@ void getLDRVal() {
   Serial.println(LDRVal.R);
 }
 
-void toggleLight() {
-  if(digitalRead(LightPIN) == HIGH){
-    digitalWrite(LightPIN, LOW);
-    Serial.println("LightOFF");
-  }
-  else if (digitalRead(LightPIN) == LOW)
-  {
-    digitalWrite(LightPIN, HIGH);
-    Serial.println("LightON");
-  }
-}
-
-void toggleFan() {
-  if(digitalRead(FanPIN) == HIGH){
-    digitalWrite(FanPIN, LOW);
-    Serial.println("FanOFF");
-  }
-  else if (digitalRead(FanPIN) == LOW)
-  {
-    digitalWrite(FanPIN, HIGH);
-    Serial.println("FanON");
-  }
-}
-
-void toggleHumidifier() {
-  if(digitalRead(HumidifierPIN) == HIGH){
-    digitalWrite(HumidifierPIN, LOW);
-    Serial.println("HumidifierOFF");
-  }
-  else if (digitalRead(HumidifierPIN) == LOW)
-  {
-    digitalWrite(HumidifierPIN, HIGH);
-    Serial.println("HumidifierON");
-  }
-}
-
-void togglePump() {
-  if(digitalRead(PumpPIN) == HIGH){
-    digitalWrite(PumpPIN, LOW);
-    Serial.println("PumpOFF");
-  }
-  else if (digitalRead(PumpPIN) == LOW)
-  {
-    digitalWrite(PumpPIN, HIGH);
-    Serial.println("PumpON");
-  }
-}
 
 
 void setup() {
@@ -142,7 +191,7 @@ void setup() {
   Arm2Servo.attach(Arm2PIN, 500, 2500);
   DryServo.attach(DryServoPIN, 500, 2500);
   tft.initR(INITR_BLACKTAB);
-  Serial.begin(9600);
+  Serial.begin(115200);
   dht.begin();
   tft.setRotation(4);
   tft.fillScreen(ST77XX_WHITE);
@@ -160,6 +209,13 @@ void setup() {
   digitalWrite(LightPIN, LOW);
   digitalWrite(PumpPIN, LOW); 
   digitalWrite(HumidifierPIN, LOW);
+
+  //绑定按钮
+  Button1.attach(button1_callback);  // 控制加湿器
+  Button2.attach(button2_callback);  // 控制风扇
+  Button3.attach(button3_callback);  // 控制灯
+  Button4.attach(button4_callback);  // 控制干燥机
+  
   // for(pos = 0; pos <= 45; ++pos) {
   //   Arm1Servo.write(pos);
   //   Arm2Servo.write(pos);
@@ -179,10 +235,21 @@ void setup() {
 
 
 void loop() {
-  if (millis() - lastHTUpdate >= HT_INTERVAL) {
+    // 运行Blinker蓝牙库
+    Blinker.run();
+
+    // 获取湿度和温度
     getHT();
     displayHT();
-    lastHTUpdate = millis();
+
+    // 如果处于自动控制模式，则根据湿度阈值自动控制设备
+    if (controlMode == 0) {
+        autoControl();
+    }
+
+    delay(1000);  // 每秒更新一次湿度和温度
+}
+
     // getLDRVal();
     // if(LDRVal.M < LDRVal.L || LDRVal.M < LDRVal.R) {
     //   if (analogRead(LDRMPIN) < analogRead(LDRLPIN)) {
@@ -193,6 +260,3 @@ void loop() {
     //     }
     //   }
     // }
-  }
-  ++HTcount;
-}
