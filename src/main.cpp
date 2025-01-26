@@ -80,6 +80,7 @@ BlinkerButton Button2("btn-fan");
 BlinkerButton Button3("btn-light");
 BlinkerButton Button4("btn-dryservo");
 BlinkerButton Button5("btn-pump");
+BlinkerButton Button6("btn-mode");
 
 void getHT() {
     ht.h = dht.readHumidity();
@@ -188,6 +189,18 @@ void toggleDry() {
   }
 }
 
+void toogleMode(){
+  if (controlMode == 2) {
+    controlMode = 0;
+  }
+  else if (controlMode == 1) {
+    controlMode = 2;
+  }
+  else if (controlMode == 0) {
+    controlMode = 1;
+  }
+}
+
 // 自动控制设备（湿度低于阈值开启加湿器，高于阈值开启风扇和干燥机）
 void autoControl() {
     if (ht.h < HUMIDITY_THRESHOLD_LOW) {
@@ -271,25 +284,42 @@ void button5_callback(const String & state) {
   }
 }
 
+void button6_callback(const String & state) {
+  BLINKER_LOG("get button state: ", state);
+  toogleMode();
+  if (controlMode == 2) {
+    Serial.println("tw Mode");
+  }
+  else if (controlMode == 1) {
+    Serial.println("BlueTooth Mode");
+  }
+  else if (controlMode == 0) {
+    Serial.println("Auto Mode");
+  }
+}
+
 void twcontrol() {
   if (digitalRead(twFanPIN) == HIGH) {
     digitalWrite(FanPIN, HIGH);
-    controlMode = 1;
-  } else {
+    controlMode = 2;
+  }
+  else {
     digitalWrite(FanPIN, LOW);
   }
 
   if (digitalRead(twLightPIN) == HIGH) {
     digitalWrite(LightPIN, HIGH);
-    controlMode = 1;
-  } else {
+    controlMode = 2;
+  }
+  else {
     digitalWrite(LightPIN, LOW);
   }
 
   if (digitalRead(twHumidifierPIN) == HIGH) {
     digitalWrite(HumidifierPIN, HIGH);
-    controlMode = 1;
-  } else {
+    controlMode = 2;
+  }
+  else {
     digitalWrite(HumidifierPIN, LOW);
   }
 }
@@ -343,6 +373,7 @@ void setup() {
   Button3.attach(button3_callback);  // 控制灯
   Button4.attach(button4_callback);  // 控制干燥机
   Button5.attach(button5_callback);
+  Button6.attach(button6_callback);
   
   // for(pos = 0; pos <= 45; ++pos) {
   //   Arm1Servo.write(pos);
@@ -377,6 +408,9 @@ void loop() {
     if (controlMode == 0) {
       autoControl();
     }
+    else if (controlMode == 2) {
+      twcontrol();
+    }
     lastHTUpdate = millis();
   }
 
@@ -385,7 +419,7 @@ void loop() {
     digitalWrite(PumpPIN, LOW);
   }
 
-  twcontrol();
+  
   
 }
 
