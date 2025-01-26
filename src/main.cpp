@@ -14,18 +14,21 @@
 #define TFT_RST 5
 #define DHTPIN 25
 #define DHTTYPE DHT11
-#define LDRLPIN 12
-#define LDRMPIN 14
-#define LDRRPIN 27
+// #define LDRLPIN 12
+// #define LDRMPIN 14
+// #define LDRRPIN 27
 #define DryServoPIN 26
-#define Arm1PIN 33
-#define Arm2PIN 32
-#define FanPIN 0
+// #define Arm1PIN 33
+// #define Arm2PIN 32
+#define FanPIN 32 //0
 #define HumidifierPIN 13
 #define PumpPIN 15
 #define LightPIN 2
 #define SR04_trig 22
 #define SR04_echo 21
+#define twHumidifierPIN 27
+#define twFanPIN 33 //14
+#define twLightPIN 12
 
 //TFT: SCL-18, SDA-23
 
@@ -100,21 +103,21 @@ void displayHT() {
   Serial.println(ht.t);
 }
 
-void getLDRVal() {
-  LDRVal.L = analogRead(LDRLPIN);
-  LDRVal.M = analogRead(LDRMPIN);
-  LDRVal.R = analogRead(LDRRPIN);
-  Serial.print(LDRVal.L);
-  Serial.print(" ");
-  Serial.print(LDRVal.M);
-  Serial.print(" ");
-  Serial.println(LDRVal.R);
-}
+// void getLDRVal() {
+//   LDRVal.L = analogRead(LDRLPIN);
+//   LDRVal.M = analogRead(LDRMPIN);
+//   LDRVal.R = analogRead(LDRRPIN);
+//   Serial.print(LDRVal.L);
+//   Serial.print(" ");
+//   Serial.print(LDRVal.M);
+//   Serial.print(" ");
+//   Serial.println(LDRVal.R);
+// }
 
 void getWaterLevel() {
   waterLevel = sr04.Distance();
-  Serial.print("Distance: ");
-  Serial.println(waterLevel);
+  // Serial.print("Distance: ");
+  // Serial.println(waterLevel);
 }
 
 void addWater() {
@@ -268,16 +271,39 @@ void button5_callback(const String & state) {
   }
 }
 
+void twcontrol() {
+  if (digitalRead(twFanPIN) == HIGH) {
+    digitalWrite(FanPIN, HIGH);
+    controlMode = 1;
+  } else {
+    digitalWrite(FanPIN, LOW);
+  }
+
+  if (digitalRead(twLightPIN) == HIGH) {
+    digitalWrite(LightPIN, HIGH);
+    controlMode = 1;
+  } else {
+    digitalWrite(LightPIN, LOW);
+  }
+
+  if (digitalRead(twHumidifierPIN) == HIGH) {
+    digitalWrite(HumidifierPIN, HIGH);
+    controlMode = 1;
+  } else {
+    digitalWrite(HumidifierPIN, LOW);
+  }
+}
+
 void setup() {
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
-  Arm1Servo.setPeriodHertz(50);
-  Arm2Servo.setPeriodHertz(50);
+  // Arm1Servo.setPeriodHertz(50);
+  // Arm2Servo.setPeriodHertz(50);
   DryServo.setPeriodHertz(50);
-  Arm1Servo.attach(Arm1PIN, 500, 2500);
-  Arm2Servo.attach(Arm2PIN, 500, 2500);
+  // Arm1Servo.attach(Arm1PIN, 500, 2500);
+  // Arm2Servo.attach(Arm2PIN, 500, 2500);
   DryServo.attach(DryServoPIN, 500, 2500);
   tft.initR(INITR_BLACKTAB);
   Serial.begin(115200);
@@ -286,16 +312,19 @@ void setup() {
   tft.fillScreen(ST77XX_WHITE);
   tft.setTextColor(ST7735_BLACK);
   tft.setTextSize(2);
-  getLDRVal();
+  // getLDRVal();
   DryServo.write(90);
   DryServoPos = 90;
-  pinMode(LDRLPIN, INPUT);  
-  pinMode(LDRMPIN, INPUT);
-  pinMode(LDRRPIN, INPUT);
+  // pinMode(LDRLPIN, INPUT);  
+  // pinMode(LDRMPIN, INPUT);
+  // pinMode(LDRRPIN, INPUT);
   pinMode(FanPIN, OUTPUT);
   pinMode(LightPIN, OUTPUT);
   pinMode(PumpPIN, OUTPUT);
   pinMode(HumidifierPIN, OUTPUT);
+  pinMode(twFanPIN, INPUT);
+  pinMode(twLightPIN, INPUT);
+  pinMode(twHumidifierPIN, INPUT);
   digitalWrite(FanPIN, LOW);
   digitalWrite(LightPIN, LOW);
   digitalWrite(PumpPIN, LOW); 
@@ -330,8 +359,10 @@ void setup() {
   //   delay(50);
   // }
   // endArmSetup:
-
-  delay(2000);
+  digitalWrite(FanPIN, LOW);
+  Serial.println(digitalRead(twFanPIN));
+  delay(4000);
+  digitalWrite(FanPIN, LOW);
 }
 
 
@@ -353,6 +384,9 @@ void loop() {
   if (waterLevel <= waterLevelMax) {
     digitalWrite(PumpPIN, LOW);
   }
+
+  twcontrol();
+  
 }
 
     // getLDRVal();
